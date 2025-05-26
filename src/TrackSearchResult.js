@@ -18,8 +18,8 @@ export default function TrackSearchResult({ track, chooseTrack }) {
         alt={track.title}
       />
       <div className="ml-3">
-        <div>{track.title}</div>
-        <div className="text-muted">{track.artist}</div>
+        <div className="fw-bold ps-2">{track.title}</div>
+        <div className="text-muted ps-2">{track.artist}</div>
       </div>
     </div>
   );

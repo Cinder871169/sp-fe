@@ -60,7 +60,7 @@ export default function Dashboard({ code }) {
     <Container className="d-flex flex-column py-2" style={{ height: "100vh" }}>
       <Form.Control
         type="search"
-        placeholder="Search for a song, artist, or album"
+        placeholder="Search for a song"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
