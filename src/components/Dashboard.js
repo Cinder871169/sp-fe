@@ -19,13 +19,6 @@ export default function Dashboard({ code }) {
 
   console.log(searchResults);
 
-  // Hàm chọn bài hát
-  function chooseTrack(track) {
-    setPlayingTrack(track);
-    setSearch("");
-    setLyrics("");
-  }
-
   // Thiết lập access token cho Spotify API
   useEffect(() => {
     if (!accessToken) return;
@@ -63,6 +56,13 @@ export default function Dashboard({ code }) {
     return () => (cancel = true);
   }, [search, accessToken]);
 
+  // Hàm chọn bài hát
+  function chooseTrack(track) {
+    setPlayingTrack(track);
+    setSearch("");
+    setLyrics("");
+  }
+
   // Lấy lời bài hát
   useEffect(() => {
     if (!playingTrack) return setLyrics("");
@@ -98,7 +98,10 @@ export default function Dashboard({ code }) {
   }
 
   return (
-    <Container className="d-flex flex-column py-2" style={{ height: "100vh" }}>
+    <Container
+      className="d-flex flex-column py-2"
+      style={{ height: "100vh", backgroundColor: "#1ed760", maxWidth: "100%" }}
+    >
       <Form.Control
         type="search"
         placeholder="Search for a song"
