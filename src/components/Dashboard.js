@@ -1,10 +1,11 @@
-import useAuth from "./useAuth";
+import useAuth from "../hooks/useAuth";
 import { Container, Form } from "react-bootstrap";
 import { useState, useEffect } from "react";
 import SpotifyWebApi from "spotify-web-api-node";
 import TrackSearchResult from "./TrackSearchResult";
 import Player from "./Player";
 
+// Khởi tạo Spotify API với client ID
 const spotifyApi = new SpotifyWebApi({
   clientId: "86f9551bfda34e3aa2a46e8ae30c8dee",
 });
@@ -14,18 +15,24 @@ export default function Dashboard({ code }) {
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [playingTrack, setPlayingTrack] = useState();
+  const [lyrics, setLyrics] = useState("");
+
   console.log(searchResults);
 
+  // Hàm chọn bài hát
   function chooseTrack(track) {
     setPlayingTrack(track);
     setSearch("");
+    setLyrics("");
   }
 
+  // Thiết lập access token cho Spotify API
   useEffect(() => {
     if (!accessToken) return;
     spotifyApi.setAccessToken(accessToken);
   }, [accessToken]);
 
+  // Tìm kiếm bài hát
   useEffect(() => {
     if (!search) return setSearchResults([]);
     if (!accessToken) return;
@@ -56,6 +63,40 @@ export default function Dashboard({ code }) {
     return () => (cancel = true);
   }, [search, accessToken]);
 
+  // Lấy lời bài hát
+  useEffect(() => {
+    if (!playingTrack) return setLyrics("");
+
+    const { title, artist } = playingTrack;
+    const query = new URLSearchParams({ title, artist }).toString();
+    // API call
+    fetch(`http://localhost:5000/lyrics?${query}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch lyrics");
+        return res.json();
+      })
+      .then((data) => {
+        setLyrics(data.lyrics || "No lyrics found");
+      })
+      .catch((err) => {
+        console.error("Error fetching lyrics:", err);
+        setLyrics("No lyrics found");
+      });
+  }, [playingTrack]);
+
+  // Định dang lời bài hát
+  function formatLyrics(lyrics) {
+    if (!lyrics || lyrics === "No lyrics found") return lyrics;
+
+    const lines = lyrics.split("\n").filter((line) => line.trim());
+
+    return lines.map((line, index) => (
+      <p key={index} className="mb-1" style={{ lineHeight: "1.5" }}>
+        {line}
+      </p>
+    ));
+  }
+
   return (
     <Container className="d-flex flex-column py-2" style={{ height: "100vh" }}>
       <Form.Control
@@ -65,7 +106,7 @@ export default function Dashboard({ code }) {
         onChange={(e) => setSearch(e.target.value)}
       />
       <div
-        className="flex-grow-1 my-2"
+        className="flex-grow-1 py-2"
         style={{
           overflowY: "auto",
         }}
@@ -77,6 +118,11 @@ export default function Dashboard({ code }) {
             chooseTrack={chooseTrack}
           />
         ))}
+        {searchResults.length === 0 && (
+          <div className="text-muted text-center" style={{ marginTop: "20px" }}>
+            {formatLyrics(lyrics)}
+          </div>
+        )}
       </div>
       <div>
         <Player accessToken={accessToken} trackUri={playingTrack?.uri} />

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import SpotifyPlayer from "react-spotify-web-playback";
 
+// Component phát nhạc Spotify
 export default function Player({ accessToken, trackUri }) {
   const [play, setPlay] = useState(false);
 
@@ -10,7 +11,6 @@ export default function Player({ accessToken, trackUri }) {
   return (
     <SpotifyPlayer
       token={accessToken}
-      showSaveIcon
       callback={(state) => {
         if (!state.isPlaying) setPlay(false);
       }}

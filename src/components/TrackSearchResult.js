@@ -1,6 +1,5 @@
-import React from "react";
-
 export default function TrackSearchResult({ track, chooseTrack }) {
+  // Xử lý sự kiện chọn bài hát
   function handlePlay() {
     chooseTrack(track);
   }
