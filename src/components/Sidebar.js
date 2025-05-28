@@ -1,5 +1,6 @@
 import React from "react";
 import Playlist from "./Playlist";
+import AddPlaylist from "./AddPlaylist";
 
 export default function Sidebar({ accessToken, onSelectPlaylist }) {
   const spotifyLogoUrl =

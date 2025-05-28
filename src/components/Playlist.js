@@ -33,7 +33,7 @@ export default function Playlist({ accessToken, onSelectPlaylist }) {
           cursor: "pointer",
         }}
       >
-        🎵 Playlists {isOpen ? "▲" : "▼"}
+        {isOpen ? "▾" : "▸"} 🎵 Playlists
       </div>
       {isOpen && (
         <ul
