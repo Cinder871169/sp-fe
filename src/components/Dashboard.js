@@ -60,7 +60,7 @@ export default function Dashboard({ code }) {
     return () => (cancel = true);
   }, [search, accessToken]);
 
-  // Hàm chọn bài hát
+  // Chọn bài hát
   function chooseTrack(track) {
     setPlayingTrack(track);
     setSearch("");
