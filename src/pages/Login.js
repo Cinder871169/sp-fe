@@ -1,11 +1,25 @@
 import { Container } from "react-bootstrap";
 
-// URL xác thực Spotify
-const AUTH_URL =
-  "https://accounts.spotify.com/authorize?client_id=86f9551bfda34e3aa2a46e8ae30c8dee&response_type=code&redirect_uri=http://127.0.0.1:3000/callback&scope=streaming%20user-read-email%20user-read-private%20user-library-read%20user-library-modify%20user-read-playback-state%20user-modify-playback-state";
-
 // Component đăng nhập
 export default function Login() {
+  const handleClick = async () => {
+    const api_uri = "https://accounts.spotify.com/authorize";
+    const client_id = "86f9551bfda34e3aa2a46e8ae30c8dee";
+    const redirect_uri = "http://127.0.0.1:3000/callback";
+    const scope = [
+      "streaming",
+      "user-read-email",
+      "user-read-private",
+      "user-library-read",
+      "user-library-modify",
+      "user-read-playback-state",
+      "user-modify-playback-state",
+      "playlist-read-private",
+    ];
+    window.location.href = `${api_uri}?client_id=${client_id}&redirect_uri=${redirect_uri}&scope=${scope.join(
+      " "
+    )}&response_type=code`;
+  };
   return (
     <Container
       className="d-flex flex-column justify-content-center align-items-center"
@@ -24,9 +38,12 @@ export default function Login() {
           style={{ width: "250px", marginBottom: "50px" }}
         />
         <div>
-          <a className="btn btn-light btn-lg rounded-pill" href={AUTH_URL}>
+          <button
+            className="btn btn-light btn-lg rounded-pill"
+            onClick={handleClick}
+          >
             Login With Spotify
-          </a>
+          </button>
         </div>
       </div>
     </Container>

@@ -1,9 +1,9 @@
 import useAuth from "../hooks/useAuth";
-import { Container, Form } from "react-bootstrap";
 import { useState, useEffect } from "react";
 import SpotifyWebApi from "spotify-web-api-node";
 import TrackSearchResult from "./TrackSearchResult";
 import Player from "./Player";
+import Sidebar from "./Sidebar";
 
 // Khởi tạo Spotify API với client ID
 const spotifyApi = new SpotifyWebApi({
@@ -16,6 +16,8 @@ export default function Dashboard({ code }) {
   const [searchResults, setSearchResults] = useState([]);
   const [playingTrack, setPlayingTrack] = useState();
   const [lyrics, setLyrics] = useState("");
+  const [playlistTracks, setPlaylistTracks] = useState([]);
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
 
   console.log(searchResults);
 
@@ -29,6 +31,8 @@ export default function Dashboard({ code }) {
   useEffect(() => {
     if (!search) return setSearchResults([]);
     if (!accessToken) return;
+
+    setPlaylistTracks([]);
 
     let cancel = false;
     spotifyApi.searchTracks(search).then((res) => {
@@ -76,13 +80,53 @@ export default function Dashboard({ code }) {
         return res.json();
       })
       .then((data) => {
-        setLyrics(data.lyrics || "No lyrics found");
+        setLyrics(data.lyrics);
       })
       .catch((err) => {
         console.error("Error fetching lyrics:", err);
         setLyrics("No lyrics found");
       });
   }, [playingTrack]);
+
+  function handlePlaylistSelect(playlistId) {
+    setSelectedPlaylist(playlistId);
+    setSearch("");
+    setSearchResults([]);
+    setLyrics("");
+
+    fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data?.items) {
+          setPlaylistTracks([]);
+          return;
+        }
+
+        setPlaylistTracks(
+          data.items
+            .filter((item) => item.track && item.track.album)
+            .map((item) => {
+              const track = item.track;
+              const albumImages = track.album.images || [];
+              const smallestAlbumImage =
+                albumImages.length > 0
+                  ? albumImages.reduce((smallest, image) =>
+                      image.height < smallest.height ? image : smallest
+                    )
+                  : null;
+
+              return {
+                artist: track.artists?.[0]?.name || "Unknown Artist",
+                title: track.name || "Untitled",
+                uri: track.uri,
+                albumUrl: smallestAlbumImage?.url || "",
+              };
+            })
+        );
+      });
+  }
 
   // Định dang lời bài hát
   function formatLyrics(lyrics) {
@@ -98,38 +142,135 @@ export default function Dashboard({ code }) {
   }
 
   return (
-    <Container
-      className="d-flex flex-column py-2"
-      style={{ height: "100vh", backgroundColor: "#1ed760", maxWidth: "100%" }}
+    <div
+      style={{
+        maxWidth: "100vw",
+        maxHeight: "100vh",
+        overflow: "hidden",
+        display: "grid",
+        gridTemplateRows: "85vh 15vh",
+      }}
     >
-      <Form.Control
-        type="search"
-        placeholder="Search for a song"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
       <div
-        className="flex-grow-1 py-2"
+        className="spotify__body"
         style={{
-          overflowY: "auto",
+          display: "grid",
+          gridTemplateColumns: "20vw 80vw",
+          height: "100%",
+          width: "100%",
+          background: "linear-gradient(transparent, rgba(0, 0, 0, 1))",
+          backgroundColor: "rgb(32, 87, 100)",
         }}
       >
-        {searchResults.map((track) => (
-          <TrackSearchResult
-            track={track}
-            key={track.uri}
-            chooseTrack={chooseTrack}
+        <div
+          style={{
+            backgroundColor: "#121212",
+            color: "white",
+            height: "100%",
+            padding: "10px",
+            overflow: "auto",
+          }}
+        >
+          <Sidebar
+            accessToken={accessToken}
+            onSelectPlaylist={handlePlaylistSelect}
           />
-        ))}
-        {searchResults.length === 0 && (
-          <div className="text-muted text-center" style={{ marginTop: "20px" }}>
-            {formatLyrics(lyrics)}
+        </div>
+        <div
+          style={{
+            height: "100vh",
+            backgroundColor: "#1ed760",
+            maxWidth: "100%",
+            display: "flex",
+            flexDirection: "column",
+            padding: "10px 0",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              padding: "0 10px",
+              marginBottom: "10px",
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                paddingRight: "10px",
+              }}
+            >
+              <input
+                type="search"
+                placeholder="Search for a song"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "5px",
+                  borderRadius: "5px",
+                  border: "none",
+                }}
+              />
+            </div>
+            <div
+              style={{
+                flex: 1,
+                paddingLeft: "10px",
+                borderLeft: "1px solid #ccc",
+              }}
+            >
+              <div style={{ height: "100%" }} />
+            </div>
           </div>
-        )}
+          <div
+            style={{
+              flexGrow: 1,
+              display: "flex",
+              flexDirection: "row",
+              padding: "0 10px",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ flex: 1, overflowY: "auto", paddingRight: "10px" }}>
+              {(searchResults.length > 0 ? searchResults : playlistTracks).map(
+                (track) => (
+                  <TrackSearchResult
+                    track={track}
+                    key={track.uri}
+                    chooseTrack={chooseTrack}
+                  />
+                )
+              )}
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                paddingLeft: "10px",
+                borderLeft: "1px solid #ccc",
+              }}
+            >
+              <div
+                className="text-muted text-center"
+                style={{ marginTop: "20px" }}
+              >
+                {formatLyrics(lyrics)}
+              </div>
+            </div>
+          </div>
+          <div>
+            <Player accessToken={accessToken} trackUri={playingTrack?.uri} />
+          </div>
+        </div>
       </div>
-      <div>
-        <Player accessToken={accessToken} trackUri={playingTrack?.uri} />
-      </div>
-    </Container>
+      <div
+        style={{
+          height: "15vh",
+          backgroundColor: "white",
+        }}
+      />
+    </div>
   );
 }

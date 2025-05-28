@@ -14,6 +14,7 @@ export default function Player({ accessToken, trackUri }) {
       callback={(state) => {
         if (!state.isPlaying) setPlay(false);
       }}
+      initialVolume={0.2}
       play={play}
       uris={trackUri ? [trackUri] : []}
     />

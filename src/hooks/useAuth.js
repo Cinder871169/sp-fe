@@ -23,39 +23,38 @@ export default function useAuth(code) {
         setAccessToken(data.accessToken);
         setRefreshToken(data.refreshToken);
         setExpiresIn(data.expiresIn);
-        window.history.pushState({}, null, "/");
       })
       .catch((err) => {
         console.error("Error during authentication:", err);
       });
   }, [code]);
 
-  // Refresh token định kỳ
-  useEffect(() => {
-    if (!refreshToken || !expiresIn) return;
-    const interval = setInterval(() => {
-      fetch("http://localhost:5000/refresh", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ refreshToken }),
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("Refresh failed");
-          return res.json();
-        })
-        .then((data) => {
-          setAccessToken(data.accessToken);
-          setExpiresIn(data.expiresIn);
-        })
-        .catch(() => {
-          window.location = "/";
-        });
-    }, (expiresIn - 60) * 1000);
+  // // Refresh token định kỳ
+  // useEffect(() => {
+  //   if (!refreshToken || !expiresIn) return;
+  //   const interval = setInterval(() => {
+  //     fetch("http://localhost:5000/refresh", {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({ refreshToken }),
+  //     })
+  //       .then((res) => {
+  //         if (!res.ok) throw new Error("Refresh failed");
+  //         return res.json();
+  //       })
+  //       .then((data) => {
+  //         setAccessToken(data.accessToken);
+  //         setExpiresIn(data.expiresIn);
+  //       })
+  //       .catch(() => {
+  //         window.location = "/";
+  //       });
+  //   }, (expiresIn - 60) * 1000);
 
-    return () => clearInterval(interval);
-  }, [refreshToken, expiresIn]);
+  //   return () => clearInterval(interval);
+  // }, [refreshToken, expiresIn]);
 
   return accessToken;
 }
