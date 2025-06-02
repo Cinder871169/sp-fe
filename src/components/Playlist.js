@@ -6,8 +6,11 @@ export default function Playlist({ accessToken, onSelectPlaylist }) {
 
   useEffect(() => {
     if (!accessToken) return;
+    const userDataString = sessionStorage.getItem("userData");
+    const userData = userDataString ? JSON.parse(userDataString) : null;
+    console.log("User Data:", userData);
 
-    fetch("https://api.spotify.com/v1/me/playlists", {
+    fetch(`https://api.spotify.com/v1/users/${userData.spotify_id}/playlists`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

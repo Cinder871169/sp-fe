@@ -1,14 +1,9 @@
-import useAuth from "../hooks/useAuth";
 import { useState, useEffect } from "react";
 import SpotifyWebApi from "spotify-web-api-node";
 import TrackSearchResult from "./TrackSearchResult";
 import Player from "./Player";
 import Sidebar from "./Sidebar";
-
-// Khởi tạo Spotify API với client ID
-const spotifyApi = new SpotifyWebApi({
-  clientId: "86f9551bfda34e3aa2a46e8ae30c8dee",
-});
+import useAuth from "../hooks/useAuth";
 
 export default function Dashboard({ code }) {
   const accessToken = useAuth(code);
@@ -18,17 +13,26 @@ export default function Dashboard({ code }) {
   const [lyrics, setLyrics] = useState("");
   const [playlistTracks, setPlaylistTracks] = useState([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
+  const [isPlaylistPlaying, setIsPlaylistPlaying] = useState(false);
+
+  const userDataString = sessionStorage.getItem("userData");
+  const userData = userDataString ? JSON.parse(userDataString) : null;
+  console.log("User Data:", userData);
+
+  const token = sessionStorage.getItem("token");
+  console.log("Token:", token);
 
   console.log(searchResults);
 
-  // Thiết lập access token cho Spotify API
+  // Search for songs
   useEffect(() => {
+    const spotifyApi = new SpotifyWebApi({
+      clientId: userData?.client_Id,
+    });
+
     if (!accessToken) return;
     spotifyApi.setAccessToken(accessToken);
-  }, [accessToken]);
 
-  // Tìm kiếm bài hát
-  useEffect(() => {
     if (!search) return setSearchResults([]);
     if (!accessToken) return;
 
@@ -60,20 +64,19 @@ export default function Dashboard({ code }) {
     return () => (cancel = true);
   }, [search, accessToken]);
 
-  // Chọn bài hát
+  // Choose a track
   function chooseTrack(track) {
     setPlayingTrack(track);
     setSearch("");
     setLyrics("");
   }
 
-  // Lấy lời bài hát
+  // Fetch lyrics
   useEffect(() => {
     if (!playingTrack) return setLyrics("");
 
     const { title, artist } = playingTrack;
     const query = new URLSearchParams({ title, artist }).toString();
-    // API call
     fetch(`http://localhost:5000/lyrics?${query}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch lyrics");
@@ -93,6 +96,7 @@ export default function Dashboard({ code }) {
     setSearch("");
     setSearchResults([]);
     setLyrics("");
+    setIsPlaylistPlaying(false);
 
     fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -104,38 +108,41 @@ export default function Dashboard({ code }) {
           return;
         }
 
-        setPlaylistTracks(
-          data.items
-            .filter((item) => item.track && item.track.album)
-            .map((item) => {
-              const track = item.track;
-              const albumImages = track.album.images || [];
-              const smallestAlbumImage =
-                albumImages.length > 0
-                  ? albumImages.reduce((smallest, image) =>
-                      image.height < smallest.height ? image : smallest
-                    )
-                  : null;
+        const tracks = data.items
+          .filter((item) => item.track && item.track.album)
+          .map((item) => {
+            const track = item.track;
 
-              return {
-                artist: track.artists?.[0]?.name || "Unknown Artist",
-                title: track.name || "Untitled",
-                uri: track.uri,
-                albumUrl: smallestAlbumImage?.url || "",
-              };
-            })
-        );
+            return {
+              artist: track.artists?.[0]?.name || "Unknown Artist",
+              title: track.name || "Untitled",
+              uri: track.uri,
+              albumUrl: track.album.images[2].url || "",
+            };
+          });
+
+        setPlaylistTracks(tracks);
       });
   }
 
-  // Định dang lời bài hát
+  function handlePlayPlaylist() {
+    if (playlistTracks.length > 0) {
+      setPlayingTrack(playlistTracks[0]);
+      setIsPlaylistPlaying(true);
+    }
+  }
+
+  // Format lyrics
   function formatLyrics(lyrics) {
     if (!lyrics || lyrics === "No lyrics found") return lyrics;
 
     const lines = lyrics.split("\n").filter((line) => line.trim());
 
     return lines.map((line, index) => (
-      <p key={index} className="mb-1" style={{ lineHeight: "1.5" }}>
+      <p
+        key={index}
+        style={{ marginBottom: "4px", lineHeight: "1.5", color: "#ffffff" }}
+      >
         {line}
       </p>
     ));
@@ -145,30 +152,31 @@ export default function Dashboard({ code }) {
     <div
       style={{
         maxWidth: "100vw",
-        maxHeight: "100vh",
-        overflow: "hidden",
-        display: "grid",
-        gridTemplateRows: "85vh 15vh",
+        minHeight: "100vh",
+        backgroundColor: "#1DB954",
+        color: "#ffffff",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
+      {/* Main Content Area */}
       <div
-        className="spotify__body"
         style={{
           display: "grid",
           gridTemplateColumns: "20vw 80vw",
-          height: "100%",
-          width: "100%",
-          background: "linear-gradient(transparent, rgba(0, 0, 0, 1))",
-          backgroundColor: "rgb(32, 87, 100)",
+          flex: 1,
+          overflow: "hidden",
         }}
       >
+        {/* Sidebar */}
         <div
           style={{
             backgroundColor: "#121212",
-            color: "white",
+            color: "#ffffff",
             height: "100%",
             padding: "10px",
-            overflow: "auto",
+            overflowY: "auto",
+            borderRight: "1px solid #282828",
           }}
         >
           <Sidebar
@@ -176,63 +184,53 @@ export default function Dashboard({ code }) {
             onSelectPlaylist={handlePlaylistSelect}
           />
         </div>
+
+        {/* Main Panel */}
         <div
           style={{
-            height: "100vh",
-            backgroundColor: "#1ed760",
-            maxWidth: "100%",
+            padding: "10px",
+            overflowY: "auto",
             display: "flex",
             flexDirection: "column",
-            padding: "10px 0",
+            height: "85vh",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              padding: "0 10px",
-              marginBottom: "10px",
-            }}
-          >
-            <div
+          {/* Search Bar */}
+          <div style={{ marginBottom: "10px" }}>
+            <input
+              type="search"
+              placeholder="Search for a song"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               style={{
-                flex: 1,
-                paddingRight: "10px",
+                width: "100%",
+                padding: "8px",
+                borderRadius: "5px",
+                border: "none",
+                backgroundColor: "#282828",
+                color: "#ffffff",
+                outline: "none",
               }}
-            >
-              <input
-                type="search"
-                placeholder="Search for a song"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "5px",
-                  borderRadius: "5px",
-                  border: "none",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                flex: 1,
-                paddingLeft: "10px",
-                borderLeft: "1px solid #ccc",
-              }}
-            >
-              <div style={{ height: "100%" }} />
-            </div>
+            />
           </div>
+
+          {/* Tracks and Lyrics */}
           <div
             style={{
-              flexGrow: 1,
+              flex: 1,
               display: "flex",
               flexDirection: "row",
-              padding: "0 10px",
               overflow: "hidden",
             }}
           >
-            <div style={{ flex: 1, overflowY: "auto", paddingRight: "10px" }}>
+            {/* Track List */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                paddingRight: "10px",
+              }}
+            >
               {(searchResults.length > 0 ? searchResults : playlistTracks).map(
                 (track) => (
                   <TrackSearchResult
@@ -244,33 +242,63 @@ export default function Dashboard({ code }) {
               )}
             </div>
 
+            {/* Lyrics */}
             <div
               style={{
                 flex: 1,
                 overflowY: "auto",
                 paddingLeft: "10px",
-                borderLeft: "1px solid #ccc",
+                borderLeft: "1px solid #282828",
               }}
             >
-              <div
-                className="text-muted text-center"
-                style={{ marginTop: "20px" }}
-              >
+              <div style={{ marginTop: "20px", textAlign: "center" }}>
                 {formatLyrics(lyrics)}
               </div>
             </div>
           </div>
-          <div>
-            <Player accessToken={accessToken} trackUri={playingTrack?.uri} />
-          </div>
+
+          {/* Playlist Play Button */}
+          {playlistTracks.length > 0 && (
+            <div style={{ marginTop: "10px" }}>
+              <button
+                onClick={handlePlayPlaylist}
+                style={{
+                  background: "black",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "20px",
+                  padding: "8px 24px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Play Playlist
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Player Section */}
       <div
         style={{
           height: "15vh",
-          backgroundColor: "white",
+          backgroundColor: "#282828",
+          padding: "10px",
+          borderTop: "1px solid #333",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
+          width: "100%",
         }}
-      />
+      >
+        <Player
+          accessToken={accessToken}
+          trackUri={playingTrack?.uri}
+          trackList={isPlaylistPlaying ? playlistTracks : null}
+          trackInfo={playingTrack}
+        />
+      </div>
     </div>
   );
 }

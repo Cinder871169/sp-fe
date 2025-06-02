@@ -1,10 +1,15 @@
 import React from "react";
 import Playlist from "./Playlist";
-import AddPlaylist from "./AddPlaylist";
 
 export default function Sidebar({ accessToken, onSelectPlaylist }) {
   const spotifyLogoUrl =
     "https://upload.wikimedia.org/wikipedia/commons/8/84/Spotify_icon.svg";
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("userData");
+    window.location.href = "/";
+  };
 
   return (
     <div
@@ -26,6 +31,22 @@ export default function Sidebar({ accessToken, onSelectPlaylist }) {
         }}
       />
       <Playlist accessToken={accessToken} onSelectPlaylist={onSelectPlaylist} />
+      <button
+        style={{
+          marginTop: "30px",
+          width: "100%",
+          padding: "10px",
+          backgroundColor: "#1db954",
+          color: "white",
+          border: "none",
+          borderRadius: "20px",
+          fontWeight: "bold",
+          cursor: "pointer",
+        }}
+        onClick={handleLogout}
+      >
+        Logout
+      </button>
     </div>
   );
 }
