@@ -1,6 +1,7 @@
 import { Container, Button, Modal, Form, Alert } from "react-bootstrap";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
+// Component Login
 export default function Login() {
   const [showLogin, setShowLogin] = useState(false);
   const [loginData, setLoginData] = useState({ login_name: "", password: "" });
@@ -9,15 +10,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [userData, setUserData] = useState(null);
 
-  useEffect(() => {
-    const token = sessionStorage.getItem("token");
-    const savedUserData = sessionStorage.getItem("userData");
-    if (token && savedUserData) {
-      setIsLoggedIn(true);
-      setUserData(JSON.parse(savedUserData));
-    }
-  }, []);
-
+  // Xử lý đăng nhập
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -32,6 +25,7 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
+        // Lưu token và thông tin người dùng
         sessionStorage.setItem("token", data.token);
         sessionStorage.setItem("userData", JSON.stringify(data.user));
         setIsLoggedIn(true);
@@ -47,6 +41,7 @@ export default function Login() {
     }
   };
 
+  // Xử lý đăng xuất
   const handleLogout = () => {
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("userData");
@@ -58,16 +53,14 @@ export default function Login() {
 
   console.log("User Data:", userData);
 
+  // Xác thực với Spotify
   const handleSpotifyAuth = async () => {
-    const token = sessionStorage.getItem("token");
-    const storedUserData = sessionStorage.getItem("userData");
-
     if (!isLoggedIn) {
       setLoginMessage("Please login first");
       return;
     }
 
-    const userData = JSON.parse(storedUserData);
+    const userData = JSON.parse(sessionStorage.getItem("userData"));
     const api_uri = "https://accounts.spotify.com/authorize";
     const client_id = userData.client_id;
     const redirect_uri = "http://127.0.0.1:3000/callback";
@@ -100,6 +93,7 @@ export default function Login() {
         maxWidth: "100%",
       }}
     >
+      {/*Hiển thị Login hoặc Logout*/}
       <div className="position-absolute top-0 end-0 m-3 d-flex align-items-center">
         {isLoggedIn ? (
           <>
@@ -125,6 +119,7 @@ export default function Login() {
         )}
       </div>
 
+      {/*Tiêu đề + logo */}
       <h2 className="text-white mb-3">Simple Music Web App With Spotify API</h2>
       <div className="text-center">
         <img
@@ -133,6 +128,7 @@ export default function Login() {
           style={{ width: "250px", marginBottom: "50px" }}
         />
         <div>
+          {/* Xác thưuc với Spotify */}
           <button
             className="btn btn-light btn-lg rounded-pill"
             onClick={handleSpotifyAuth}
@@ -145,6 +141,7 @@ export default function Login() {
         </div>
       </div>
 
+      {/*Đăng nhập */}
       <Modal
         show={showLogin}
         onHide={() => {

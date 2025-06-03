@@ -5,7 +5,7 @@ export default function useAuth(code) {
   const [refreshToken, setRefreshToken] = useState();
   const [expiresIn, setExpiresIn] = useState();
 
-  // Login và lấy token
+  // Lấy access token từ server khi có mã code
   useEffect(() => {
     const token = sessionStorage.getItem("token");
     console.log("Token:", token);

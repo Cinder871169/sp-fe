@@ -1,5 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { BsFillPlayCircleFill, BsFillPauseCircleFill } from "react-icons/bs";
+import { useState, useEffect, useRef } from "react";
+import {
+  BsFillPlayCircleFill,
+  BsFillPauseCircleFill,
+  BsVolumeUp,
+  BsVolumeDown,
+  BsVolumeMute,
+} from "react-icons/bs";
 import { CgPlayTrackNext, CgPlayTrackPrev } from "react-icons/cg";
 
 const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
@@ -8,9 +14,12 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
   const [error, setError] = useState(null);
   const [deviceId, setDeviceId] = useState(null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-  console.log(trackList);
+  const [volume, setVolume] = useState(20);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const progressRef = useRef(null);
 
-  // useEffect khởi tạo thiết bị
+  // Khởi tạo Spotify Web Playback
   useEffect(() => {
     if (!accessToken) return;
 
@@ -23,7 +32,7 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
       const spotifyPlayer = new window.Spotify.Player({
         name: "My Web Player",
         getOAuthToken: (cb) => cb(accessToken),
-        volume: 0.5,
+        volume: volume / 100,
       });
 
       spotifyPlayer.addListener("ready", ({ device_id }) => {
@@ -41,6 +50,30 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
     };
   }, [accessToken]);
 
+  //Cập nhật vị trí và thời lượng bài hát mỗi giây
+  useEffect(() => {
+    if (!player) return;
+
+    const interval = setInterval(() => {
+      player.getCurrentState().then((state) => {
+        if (state) {
+          setPosition(state.position);
+          setDuration(state.duration);
+        }
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [player]);
+
+  // Volume
+  useEffect(() => {
+    if (player && player.setVolume) {
+      player.setVolume(volume / 100);
+    }
+  }, [volume, player]);
+
+  // Cập nhật index
   useEffect(() => {
     if (!trackList || trackList.length === 0 || !trackUri) return;
 
@@ -50,6 +83,7 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
     }
   }, [trackUri, trackList]);
 
+  // Khi trackUri hoặc accessToken thay đổi, phát bài hát mới
   useEffect(() => {
     if (!deviceId || !trackUri || !accessToken) return;
 
@@ -84,6 +118,7 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
     playTrack();
   }, [deviceId, trackUri, accessToken]);
 
+  // Resume/Pause
   const togglePlay = async () => {
     if (!player) {
       setError("Player not initialized");
@@ -122,6 +157,7 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
     }
   };
 
+  // Next
   const nextTrack = async () => {
     if (!player) {
       setError("Player not initialized");
@@ -134,6 +170,8 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
 
     const nextIndex = currentTrackIndex + 1;
     const nextTrackUri = trackList[nextIndex].uri;
+
+    setCurrentTrackIndex(nextIndex); // Update index immediately
 
     try {
       const response = await fetch(
@@ -153,7 +191,6 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
       if (!response.ok)
         throw new Error(`HTTP error! Status: ${response.status}`);
 
-      setCurrentTrackIndex(nextIndex);
       setIsPlaying(true);
       setError(null);
     } catch (err) {
@@ -162,6 +199,7 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
     }
   };
 
+  // Prev
   const prevTrack = async () => {
     if (!player) {
       setError("Player not initialized");
@@ -174,6 +212,8 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
 
     const prevIndex = currentTrackIndex - 1;
     const prevTrackUri = trackList[prevIndex].uri;
+
+    setCurrentTrackIndex(prevIndex); // Update index immediately
 
     try {
       const response = await fetch(
@@ -192,7 +232,6 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
       );
       if (!response.ok)
         throw new Error(`HTTP error! Status: ${response.status}`);
-      setCurrentTrackIndex(prevIndex);
       setIsPlaying(true);
       setError(null);
     } catch (err) {
@@ -201,12 +240,25 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
     }
   };
 
-  if (!accessToken) {
-    return <div>Please provide a valid Spotify access token</div>;
-  }
-  if (!trackUri) {
-    return <div>Please select a song to play</div>;
-  }
+  // Xử lý thay đổi âm lượng
+  const handleVolumeChange = (e) => {
+    setVolume(Number(e.target.value));
+  };
+
+  // Seek handler
+  const handleSeek = async (e) => {
+    const seekTo = Number(e.target.value);
+    setPosition(seekTo);
+    await player.seek(seekTo);
+  };
+
+  const formatTime = (ms) => {
+    if (!ms && ms !== 0) return "0:00";
+    const totalSeconds = Math.floor(ms / 1000);
+    const min = Math.floor(totalSeconds / 60);
+    const sec = totalSeconds % 60;
+    return `${min}:${sec < 10 ? "0" : ""}${sec}`;
+  };
 
   return (
     <div
@@ -226,6 +278,7 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
           Error: {error}
         </div>
       )}
+      {/* Thông tin track và ảnh */}
       <div
         style={{
           display: "flex",
@@ -265,52 +318,149 @@ const Player = ({ accessToken, trackUri, trackList, trackInfo }) => {
           </span>
         </div>
       </div>
-
+      {/* Nút điều khiển */}
       <div
         style={{
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: "1.5rem",
           flex: 1,
         }}
       >
-        <CgPlayTrackPrev
-          style={
-            !player || error || currentTrackIndex <= 0
-              ? { ...iconStyle, cursor: "not-allowed", opacity: 0.4 }
-              : iconStyle
-          }
-          onClick={prevTrack}
-          title="Previous"
-        />
-        {isPlaying ? (
-          <BsFillPauseCircleFill
-            style={activeIconStyle}
-            onClick={togglePlay}
-            title="Pause"
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "1.5rem",
+            width: "100%",
+          }}
+        >
+          <CgPlayTrackPrev
+            style={
+              !player || error || currentTrackIndex <= 0
+                ? { ...iconStyle, cursor: "not-allowed", opacity: 0.4 }
+                : iconStyle
+            }
+            onClick={prevTrack}
+            title="Previous"
+          />
+          {isPlaying ? (
+            <BsFillPauseCircleFill
+              style={activeIconStyle}
+              onClick={togglePlay}
+              title="Pause"
+            />
+          ) : (
+            <BsFillPlayCircleFill
+              style={activeIconStyle}
+              onClick={togglePlay}
+              title="Play"
+            />
+          )}
+          <CgPlayTrackNext
+            style={
+              !player ||
+              error ||
+              !trackList ||
+              currentTrackIndex >= trackList.length - 1
+                ? { ...iconStyle, cursor: "not-allowed", opacity: 0.4 }
+                : iconStyle
+            }
+            onClick={nextTrack}
+            title="Next"
+          />
+        </div>
+        {/* Thanh tiến trình */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginTop: 8,
+            width: "100%",
+            minWidth: 200,
+            maxWidth: 400,
+          }}
+        >
+          <span
+            style={{
+              color: "#b3b3b3",
+              fontSize: 12,
+              minWidth: 40,
+              textAlign: "right",
+            }}
+          >
+            {formatTime(position)}
+          </span>
+          <input
+            ref={progressRef}
+            type="range"
+            min={0}
+            max={duration || 1}
+            value={position}
+            onChange={handleSeek}
+            style={{
+              margin: "0 8px",
+              width: "100%",
+              accentColor: "#1db954",
+              height: 4,
+            }}
+          />
+          <span
+            style={{
+              color: "#b3b3b3",
+              fontSize: 12,
+              minWidth: 40,
+              textAlign: "left",
+            }}
+          >
+            {formatTime(duration)}
+          </span>
+        </div>
+      </div>
+      {/* Thanh âm lượng */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+        }}
+      >
+        {volume === 0 ? (
+          <BsVolumeMute
+            style={{ color: "#b3b3b3", fontSize: "1.5rem", marginRight: 8 }}
+          />
+        ) : volume < 50 ? (
+          <BsVolumeDown
+            style={{ color: "#b3b3b3", fontSize: "1.5rem", marginRight: 8 }}
           />
         ) : (
-          <BsFillPlayCircleFill
-            style={activeIconStyle}
-            onClick={togglePlay}
-            title="Play"
+          <BsVolumeUp
+            style={{ color: "#b3b3b3", fontSize: "1.5rem", marginRight: 8 }}
           />
         )}
-        <CgPlayTrackNext
-          style={
-            !player ||
-            error ||
-            !trackList ||
-            currentTrackIndex >= trackList.length - 1
-              ? { ...iconStyle, cursor: "not-allowed", opacity: 0.4 }
-              : iconStyle
-          }
-          onClick={nextTrack}
-          title="Next"
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={volume}
+          onChange={handleVolumeChange}
+          style={{ width: 100 }}
         />
+        <span
+          style={{
+            marginLeft: 8,
+            color: "#b3b3b3",
+            width: 30,
+            textAlign: "right",
+          }}
+        >
+          {volume}
+        </span>
       </div>
-      <div style={{ flex: 1 }}></div>
     </div>
   );
 };

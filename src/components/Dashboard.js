@@ -5,6 +5,8 @@ import Player from "./Player";
 import Sidebar from "./Sidebar";
 import useAuth from "../hooks/useAuth";
 
+const spotifyApi = new SpotifyWebApi();
+
 export default function Dashboard({ code }) {
   const accessToken = useAuth(code);
   const [search, setSearch] = useState("");
@@ -14,64 +16,165 @@ export default function Dashboard({ code }) {
   const [playlistTracks, setPlaylistTracks] = useState([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
   const [isPlaylistPlaying, setIsPlaylistPlaying] = useState(false);
+  const [playlistActionTrigger, setPlaylistActionTrigger] = useState(0);
 
-  const userDataString = sessionStorage.getItem("userData");
-  const userData = userDataString ? JSON.parse(userDataString) : null;
-  console.log("User Data:", userData);
-
-  const token = sessionStorage.getItem("token");
-  console.log("Token:", token);
+  const userData = JSON.parse(sessionStorage.getItem("userData"));
 
   console.log(searchResults);
 
-  // Search for songs
+  // Thiết lập Spotify API
   useEffect(() => {
-    const spotifyApi = new SpotifyWebApi({
-      clientId: userData?.client_Id,
-    });
-
     if (!accessToken) return;
+    if (userData?.client_Id) {
+      spotifyApi.setClientId(userData.client_Id);
+    }
     spotifyApi.setAccessToken(accessToken);
+  }, [accessToken, userData]);
 
+  // Search
+  useEffect(() => {
     if (!search) return setSearchResults([]);
     if (!accessToken) return;
 
     setPlaylistTracks([]);
 
     let cancel = false;
-    spotifyApi.searchTracks(search).then((res) => {
-      if (cancel) return;
-      setSearchResults(
-        res.body.tracks.items.map((track) => {
-          const smallestAlbumImage = track.album.images.reduce(
-            (smallest, image) => {
-              if (image.height < smallest.height) return image;
-              return smallest;
-            },
-            track.album.images[0]
-          );
-
-          return {
-            artist: track.artists[0].name,
-            title: track.name,
-            uri: track.uri,
-            albumUrl: smallestAlbumImage.url,
-          };
-        })
-      );
-    });
+    spotifyApi
+      .searchTracks(search)
+      .then((res) => {
+        if (cancel) return;
+        if (!res?.body?.tracks?.items) {
+          setSearchResults([]);
+          return;
+        }
+        setSearchResults(
+          res.body.tracks.items
+            .filter((track) => track && track.album)
+            .map((track) => {
+              return {
+                artist: track.artists?.[0]?.name || "Unknown Artist",
+                title: track.name || "Untitled",
+                uri: track.uri,
+                albumUrl: track.album.images?.[0]?.url || "",
+              };
+            })
+        );
+      })
+      .catch((err) => {
+        console.error("Error searching tracks:", err);
+        setSearchResults([]);
+      });
 
     return () => (cancel = true);
   }, [search, accessToken]);
 
-  // Choose a track
+  // Chọn 1 track
   function chooseTrack(track) {
     setPlayingTrack(track);
     setSearch("");
     setLyrics("");
   }
 
-  // Fetch lyrics
+  // Lấy danh sách tracks của playlist
+  function handlePlaylistSelect(playlistId) {
+    setSelectedPlaylist(playlistId);
+    setSearch("");
+    setSearchResults([]);
+    setLyrics("");
+    setIsPlaylistPlaying(false);
+
+    if (!accessToken) return;
+
+    // Lấy tracks của playlist
+    fetch(`http://localhost:5000/playlists/${playlistId}`, {
+      headers: {
+        Authorization: `Bearer ${sessionStorage.getItem("token")}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data?.tracks) {
+          setPlaylistTracks([]);
+          return;
+        }
+        setPlaylistTracks(data.tracks);
+        console.log(playlistTracks);
+      })
+      .catch((err) => {
+        setPlaylistTracks([]);
+        console.error("Error fetching playlist tracks:", err);
+      });
+  }
+
+  // Phát playlist
+  function handlePlayPlaylist() {
+    if (playlistTracks.length > 0) {
+      setPlayingTrack(playlistTracks[0]);
+      setIsPlaylistPlaying(true);
+    }
+  }
+
+  // Thêm playlist
+  async function handleAddPlaylist(name, playlistId) {
+    const token = sessionStorage.getItem("token");
+    await fetch("http://localhost:5000/playlists", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name, playlistId, tracks: [] }),
+    });
+    setPlaylistActionTrigger((t) => t + 1);
+  }
+
+  // Xóa playlist
+  async function handleDeletePlaylist(playlistId) {
+    const token = sessionStorage.getItem("token");
+    await fetch(`http://localhost:5000/playlists/${playlistId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setPlaylistActionTrigger((t) => t + 1);
+    if (selectedPlaylist === playlistId) {
+      setSelectedPlaylist(null);
+      setPlaylistTracks([]);
+    }
+  }
+
+  // Thêm track playlist
+  async function handleAddTrackToPlaylist(track) {
+    if (!selectedPlaylist) return;
+    const token = sessionStorage.getItem("token");
+    await fetch(`http://localhost:5000/playlists/${selectedPlaylist}/tracks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tracks: [track] }),
+    });
+    // Refresh
+    handlePlaylistSelect(selectedPlaylist);
+  }
+
+  // Xóa track khỏi playlist
+  async function handleRemoveTrackFromPlaylist(uri) {
+    if (!selectedPlaylist) return;
+    const token = sessionStorage.getItem("token");
+    await fetch(`http://localhost:5000/playlists/${selectedPlaylist}/tracks`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ uri }),
+    });
+    // Refresh playlist tracks
+    handlePlaylistSelect(selectedPlaylist);
+  }
+
+  // Lấy lyrics
   useEffect(() => {
     if (!playingTrack) return setLyrics("");
 
@@ -90,47 +193,6 @@ export default function Dashboard({ code }) {
         setLyrics("No lyrics found");
       });
   }, [playingTrack]);
-
-  function handlePlaylistSelect(playlistId) {
-    setSelectedPlaylist(playlistId);
-    setSearch("");
-    setSearchResults([]);
-    setLyrics("");
-    setIsPlaylistPlaying(false);
-
-    fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data?.items) {
-          setPlaylistTracks([]);
-          return;
-        }
-
-        const tracks = data.items
-          .filter((item) => item.track && item.track.album)
-          .map((item) => {
-            const track = item.track;
-
-            return {
-              artist: track.artists?.[0]?.name || "Unknown Artist",
-              title: track.name || "Untitled",
-              uri: track.uri,
-              albumUrl: track.album.images[2].url || "",
-            };
-          });
-
-        setPlaylistTracks(tracks);
-      });
-  }
-
-  function handlePlayPlaylist() {
-    if (playlistTracks.length > 0) {
-      setPlayingTrack(playlistTracks[0]);
-      setIsPlaylistPlaying(true);
-    }
-  }
 
   // Format lyrics
   function formatLyrics(lyrics) {
@@ -159,7 +221,6 @@ export default function Dashboard({ code }) {
         flexDirection: "column",
       }}
     >
-      {/* Main Content Area */}
       <div
         style={{
           display: "grid",
@@ -182,6 +243,9 @@ export default function Dashboard({ code }) {
           <Sidebar
             accessToken={accessToken}
             onSelectPlaylist={handlePlaylistSelect}
+            onAddPlaylist={handleAddPlaylist}
+            onDeletePlaylist={handleDeletePlaylist}
+            playlistActionTrigger={playlistActionTrigger}
           />
         </div>
 
@@ -195,7 +259,7 @@ export default function Dashboard({ code }) {
             height: "85vh",
           }}
         >
-          {/* Search Bar */}
+          {/* Search */}
           <div style={{ marginBottom: "10px" }}>
             <input
               type="search"
@@ -214,7 +278,7 @@ export default function Dashboard({ code }) {
             />
           </div>
 
-          {/* Tracks and Lyrics */}
+          {/* Tracks + Lyrics */}
           <div
             style={{
               flex: 1,
@@ -231,15 +295,65 @@ export default function Dashboard({ code }) {
                 paddingRight: "10px",
               }}
             >
-              {(searchResults.length > 0 ? searchResults : playlistTracks).map(
-                (track) => (
-                  <TrackSearchResult
-                    track={track}
-                    key={track.uri}
-                    chooseTrack={chooseTrack}
-                  />
-                )
-              )}
+              {searchResults.length > 0
+                ? searchResults.map((track) => (
+                    <div
+                      key={track.uri}
+                      style={{ display: "flex", alignItems: "center" }}
+                    >
+                      <TrackSearchResult
+                        track={track}
+                        chooseTrack={chooseTrack}
+                      />
+                      {selectedPlaylist && (
+                        <button
+                          style={{
+                            marginLeft: 8,
+                            background: "white",
+                            color: "black",
+                            border: "none",
+                            borderRadius: "50%",
+                            width: 28,
+                            height: 28,
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                          }}
+                          title="Add to playlist"
+                          onClick={() => handleAddTrackToPlaylist(track)}
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  ))
+                : playlistTracks.map((track) => (
+                    <div
+                      key={track.uri}
+                      style={{ display: "flex", alignItems: "center" }}
+                    >
+                      <TrackSearchResult
+                        track={track}
+                        chooseTrack={chooseTrack}
+                      />
+                      <button
+                        style={{
+                          marginLeft: 8,
+                          background: "white",
+                          color: "black",
+                          border: "none",
+                          borderRadius: "50%",
+                          width: 28,
+                          height: 28,
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                        title="Remove from playlist"
+                        onClick={() => handleRemoveTrackFromPlaylist(track.uri)}
+                      >
+                        -
+                      </button>
+                    </div>
+                  ))}
             </div>
 
             {/* Lyrics */}
@@ -251,13 +365,18 @@ export default function Dashboard({ code }) {
                 borderLeft: "1px solid #282828",
               }}
             >
-              <div style={{ marginTop: "20px", textAlign: "center" }}>
+              <div
+                style={{
+                  marginTop: "20px",
+                  textAlign: "center",
+                }}
+              >
                 {formatLyrics(lyrics)}
               </div>
             </div>
           </div>
 
-          {/* Playlist Play Button */}
+          {/* Phát Playlist */}
           {playlistTracks.length > 0 && (
             <div style={{ marginTop: "10px" }}>
               <button
@@ -279,7 +398,7 @@ export default function Dashboard({ code }) {
         </div>
       </div>
 
-      {/* Player Section */}
+      {/* Player */}
       <div
         style={{
           height: "15vh",
